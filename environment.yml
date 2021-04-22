@@ -1,0 +1,14 @@
+name: arrow-kafka
+channels:
+- conda-forge
+dependencies:
+- python=3.8
+- pip
+- pyarrow
+
+- ipykernel
+- jupyterlab
+
+- pip:
+  - nycflights13
+
