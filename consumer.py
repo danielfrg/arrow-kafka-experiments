@@ -4,9 +4,13 @@ import logging
 import random
 import time
 
+import datafusion
 import pyarrow as pa
 import pyarrow.parquet as pq
 from confluent_kafka import Consumer, KafkaException
+
+F = datafusion.functions
+
 
 # %%
 
@@ -43,6 +47,7 @@ def print_assignment(consumer, partitions):
 # Subscribe to topics
 c.subscribe(topics, on_assign=print_assignment)
 
+ctx = datafusion.ExecutionContext()
 
 # %%
 
@@ -55,19 +60,45 @@ try:
         if msg.error():
             raise KafkaException(msg.error())
         else:
-            # Proper message
+            # Read message
             buf = msg.value()
             reader = pa.ipc.open_stream(buf)
 
             batches = [b for b in reader]
             batch = batches[0]
-            table = pa.Table.from_batches(batches)
-            print(table)
+            # print(batches[0])
+            # print(pa.Table.from_batches(batches).to_pandas())
 
+            # Create a RecordBatch just with int for datafusion (string not supported)
+            comp_batch = pa.RecordBatch.from_arrays(
+                [batch["dep_delay"], batch["arr_delay"]],
+                names=["dep_delay", "arr_delay"],
+            )
+
+            # Create the datafusion DF
+            df = ctx.create_dataframe([[comp_batch]])
+
+            # Do simple computation
+            df = df.select(
+                F.col("dep_delay") + F.col("arr_delay"),
+            )
+
+            computed_batch = df.collect()
+
+            # Create table from read data
+            table = pa.Table.from_batches(batches)
+
+            # Append new column
+            table = table.append_column("total_delay", computed_batch[0].column(0))
+
+            print(table.to_pandas())
+
+            # Create writter
             if i == 0:
-                pqwriter = pq.ParquetWriter("sample.parquet", table.schema)
+                pqwriter = pq.ParquetWriter("./data/sample.parquet", table.schema)
                 i = 1
 
+            # Append to Parquet
             pqwriter.write_table(table)
 
             import time
@@ -76,5 +107,10 @@ try:
 
 except KeyboardInterrupt:
     print("%% Aborted by user\n")
+
+finally:
+    if pqwriter:
+        pqwriter.close()
+
 
 # %%

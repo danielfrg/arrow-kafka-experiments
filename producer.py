@@ -54,6 +54,7 @@ topic = "arrow-test"
 while True:
     row = int(random.random() * (len(flights) - 1))
     print(row)
+
     batch = records.slice(offset=row, length=1)
 
     sink = pa.BufferOutputStream()
