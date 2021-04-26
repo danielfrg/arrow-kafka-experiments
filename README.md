@@ -1,4 +1,4 @@
-# arrow-kafka-flight
+# arrow-kafka-experiments
 
 This is a simple experiment using Arrow and Kafka.
 
